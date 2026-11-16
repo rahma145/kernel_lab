@@ -5,10 +5,13 @@
 #include <linux/uaccess.h>
 #include <linux/errno.h>
 #include <linux/string.h>
+#include <linux/mutex.h>
 
 #define PROC_NAME "Kernel_Lab"
 #define BUFFER_SIZE 1024
+
 static int counter = 0;
+DEFINE_MUTEX(counter_mutex);
 
 static ssize_t my_read(struct file *file, char __user *buffer, size_t count, loff_t *offset);
 
@@ -47,7 +50,12 @@ static ssize_t my_read(struct file *file, char __user *buffer, size_t count, lof
     char kernel_data[32];
 
     int data_len;
-    data_len = scnprintf(kernel_data, sizeof(kernel_data), "%d\n", counter);
+    int local_counter = 0; 
+
+    mutex_lock(&counter_mutex);
+    local_counter = counter; 
+    mutex_unlock(&counter_mutex);
+    data_len = scnprintf(kernel_data, sizeof(kernel_data), "%d\n", local_counter);
     size_t remaining;
     size_t data_to_copy;
     unsigned long not_copied;
@@ -90,11 +98,15 @@ static ssize_t my_write(struct file *file, const char __user *user_buf, size_t c
 
     if (strcmp(command, "inc") == 0)
     {
+        mutex_lock(&counter_mutex);
         counter++;
+        mutex_unlock(&counter_mutex);
     }
     else if (strcmp(command, "reset") == 0)
     {
+        mutex_lock(&counter_mutex);
         counter = 0;
+        mutex_unlock(&counter_mutex);
     }
     else
     {
